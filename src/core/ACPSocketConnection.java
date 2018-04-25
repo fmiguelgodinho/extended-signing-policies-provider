@@ -55,8 +55,8 @@ public class ACPSocketConnection {
 		
 		os.write(bb.array());
 		os.flush();
-		System.out.println(description + " sent: " + new String(delimiterpos > 0 ? 
-				bb.put(delimiterpos, (byte) 0x0a).array() : bb.array(), "UTF-8"));
+//		System.out.println(description + " sent: " + new String(delimiterpos > 0 ? 
+//				bb.put(delimiterpos, (byte) 0x0a).array() : bb.array(), "UTF-8"));
 	}
 	
 	

@@ -84,11 +84,11 @@ public class ACPModule {
 			String payload = br.readLine();			// get the payload
 			
 			if (recvCall == null || recvCall.isEmpty()) {
-				System.out.println("Unexpected: Call was empty!");
+				logError(null, new Exception("Unexpected: Call was empty!"));
 				continue;
 			}
 			
-			System.out.println("Received callName: " + recvCall + " payload: " + payload);
+//			System.out.println("Received callName: " + recvCall + " payload: " + payload);
 			
 			JsonReader jread = Json.createReader(new StringReader(payload));
 			JsonObject recvJson = jread.readObject();
@@ -160,11 +160,12 @@ public class ACPModule {
 					break;
 					
 				default:
+					logError(null, new Exception("Unexpected: Unknown call!"));
 					System.out.println("Unexpected: Unknown call!");
 			}
 			
 			if (respCall == null) {
-				System.out.println("Error: Wasn't able to find an appropriate response. Continuing...");
+				logError(null, new Exception("Error: Wasn't able to find an appropriate response. Continuing..."));
 				continue;
 			}
 			
@@ -202,9 +203,13 @@ public class ACPModule {
 	private JsonObject verify_ThreshSig(GroupKey gk, SigShare[] sigs, byte[] message) 
 	throws IOException
 	{
-		// verify message sig
-		boolean isValid = SigShare.verify(message, sigs, 
-				gk.getK(), gk.getL(), gk.getModulus(), gk.getExponent());
+		boolean isValid = false;
+		
+		if (gk.getK() == sigs.length) {
+			// verify message sig
+			isValid = SigShare.verify(message, sigs, 
+					gk.getK(), gk.getL(), gk.getModulus(), gk.getExponent());
+		}
 		
 		return Json.createObjectBuilder()
 				.add("valid", isValid)
@@ -294,7 +299,9 @@ public class ACPModule {
 				.build()
 				.toString().getBytes("UTF-8"));
 		
-
+		System.out.println("1. Requested for generation of group key and shares: (l,k,keySize) = (" 
+				+ 8 + "," + 5 + "," + 512);
+		
 		conn.receive(recv);
 		String recvCall = br.readLine();		// get the call name
 		String payload = br.readLine();			// get the payload
@@ -306,7 +313,10 @@ public class ACPModule {
 		
 		String pubkey = recvJson.getString("group-key");
 		
-		Thread.sleep(2000);
+
+		System.out.println("2. Successfully got group key and shares.");
+		
+//		Thread.sleep(2000);
 
 		int[] sharepos = {0, 2, 3, 5, 7};
 		String[] sigshares = new String[5];
@@ -316,6 +326,9 @@ public class ACPModule {
 			
 			int myid = shobj.getInt("id");
 			String mysh = shobj.getString("share");
+			
+
+			System.out.println("3. (" + (i+1) + "/5) Requesting signing of message m with share id = " + myid);
 		
 			conn.send(CallType.ThreshSigSignCall, Json.createObjectBuilder()
 					.add("crypto", Json.createObjectBuilder()
@@ -343,8 +356,12 @@ public class ACPModule {
 			jread.close();
 			
 			sigshares[i] = recvJson2.getString("signature");
-			Thread.sleep(1000);
+//			Thread.sleep(1000);
 		}
+		
+
+		System.out.println("4. Collected 5 signature shares.");
+		System.out.println("5. Requesting verification of legitimate message m...");
 		
 		conn.send(CallType.ThreshSigVerifyCall, Json.createObjectBuilder()
 				.add("crypto", Json.createObjectBuilder()
@@ -361,6 +378,74 @@ public class ACPModule {
 							"ut labore et dolore magna aliqua.")
 				.build()
 				.toString().getBytes("UTF-8"));
+
+		recv = new byte[1000];
+		br = new BufferedReader(
+				new InputStreamReader(new ByteArrayInputStream(recv), "UTF-8")
+		);
+
+		conn.receive(recv);
+		recvCall = br.readLine();		// get the call name
+		payload = br.readLine();			// get the payload
+		
+		System.out.println("6. Result of verification = " + payload);
+		
+		System.out.println("7. Requesting verification of tampered message m...");
+		
+		conn.send(CallType.ThreshSigVerifyCall, Json.createObjectBuilder()
+				.add("crypto", Json.createObjectBuilder()
+						.add("group-key", pubkey)
+						.add("signatures", Json.createArrayBuilder()
+								.add(sigshares[0])
+								.add(sigshares[1])
+								.add(sigshares[2])
+								.add(sigshares[3])
+								.add(sigshares[4])))
+				.add("msg", "lorem ipsum dolor sit amet, " +
+						"consectetur VIRUS elit, " + 
+					 	"sed do eiusmod tempor incididunt " + 
+						"ut ATTACK et dolore magna aliqua.")
+				.build()
+				.toString().getBytes("UTF-8"));
+		
+		recv = new byte[1000];
+		br = new BufferedReader(
+				new InputStreamReader(new ByteArrayInputStream(recv), "UTF-8")
+		);
+
+		conn.receive(recv);
+		recvCall = br.readLine();		// get the call name
+		payload = br.readLine();			// get the payload
+		
+		System.out.println("8. Result of verification = " + payload);
+		
+		System.out.println("9. Requesting verification of legitimate message m with a missing share (4/5)...");
+		
+		conn.send(CallType.ThreshSigVerifyCall, Json.createObjectBuilder()
+				.add("crypto", Json.createObjectBuilder()
+						.add("group-key", pubkey)
+						.add("signatures", Json.createArrayBuilder()
+								.add(sigshares[0])
+								.add(sigshares[1])
+								.add(sigshares[3])
+								.add(sigshares[4])))
+				.add("msg", "lorem ipsum dolor sit amet, " +
+						"consectetur adipiscing elit, " + 
+					 	"sed do eiusmod tempor incididunt " + 
+						"ut labore et dolore magna aliqua.")
+				.build()
+				.toString().getBytes("UTF-8"));
+		
+		recv = new byte[1000];
+		br = new BufferedReader(
+				new InputStreamReader(new ByteArrayInputStream(recv), "UTF-8")
+		);
+
+		conn.receive(recv);
+		recvCall = br.readLine();		// get the call name
+		payload = br.readLine();			// get the payload
+		
+		System.out.println("10. Result of verification = " + payload);
 	}
 	
 	
