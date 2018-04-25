@@ -9,9 +9,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.List;
 
 import javax.json.Json;
 import javax.json.JsonArray;
@@ -419,7 +417,7 @@ public class ACPServer {
 		
 		System.out.println("8. Result of verification = " + payload);
 		
-		System.out.println("9. Requesting verification of legitimate message m with a missing share (4/5)...");
+		System.out.println("9. Requesting verification of legitimate message m with a missing signature share...");
 		
 		conn.send(CallType.ThreshSigVerifyCall, Json.createObjectBuilder()
 				.add("crypto", Json.createObjectBuilder()
@@ -427,6 +425,7 @@ public class ACPServer {
 						.add("signatures", Json.createArrayBuilder()
 								.add(sigshares[0])
 								.add(sigshares[1])
+								// missing sig share #2
 								.add(sigshares[3])
 								.add(sigshares[4])))
 				.add("msg", "lorem ipsum dolor sit amet, " +
@@ -446,6 +445,38 @@ public class ACPServer {
 		payload = br.readLine();			// get the payload
 		
 		System.out.println("10. Result of verification = " + payload);
+		
+		System.out.println("11. Requesting verification of legitimate message m with forged signature share...");
+		
+		sigshares[3] = "rO0ABXNyABJ0aHJlc2hzaWcuU2lnU2hhcmU9glIxI4V1bAIAA0kAAmlkTAADc2lndAAWTGphdmEvbWF0aC9CaWdJbnRlZ2VyO0wAC3NpZ1ZlcmlmaWVydAAUTHRocmVzaHNpZy9WZXJpZmllcjt4cAAAAAZzcgAUamF2YS5tYXRoLkJpZ0ludGVnZXKM/J8fqTv7HQMABkkACGJpdENvdW50SQAJYml0TGVuZ3RoSQATZmlyc3ROb256ZXJvQnl0ZU51bUkADGxvd2VzdFNldEJpdEkABnNpZ251bVsACW1hZ25pdHVkZXQAAltCeHIAEGphdmEubGFuZy5OdW1iZXKGrJUdC5TgiwIAAHhw///////////////+/////gAAAAF1cgACW0Ks8xf4BghU4AIAAHhwAAAAgEQlMQfZaEOMCYjMfPa48zYD6LYqT+lHYNvAeiP9WNLN8U2l8X1JdSywklJhrNX6hn2MPe91hj6TFgYdrns4UkNJn4p/nr1pNaO0GjSXEH44Ka/nA0Y8RP543fdd2Bu1OJflVVZq0/dQkHd3VHzyzJxGFVwPaScs/FmLdKvkTfXreHNyABJ0aHJlc2hzaWcuVmVyaWZpZXKXROU5Q9BVhQIABEwAAWNxAH4AAUwADWdyb3VwVmVyaWZpZXJxAH4AAUwADXNoYXJlVmVyaWZpZXJxAH4AAUwAAXpxAH4AAXhwc3EAfgAE///////////////+/////gAAAAF1cQB+AAgAAACAV2wONb3dB/L04PANigxJmG57xxmS3QolPPcQQJUmpvGzys6HD9i309pLQyyBbejxekU9mJcTn1soQZ8sdixELFoo0nRndGo6XiiKb7uPC1BCH+qskce+wdsUfFbSH9CvXrbip/JGVclSA9DH3Vi4oi3pJoJJ9gXaoTP6yjJcg4h4c3EAfgAE///////////////+/////gAAAAF1cQB+AAgAAACAQ6PAEZfuEbSqVXD5Uu5eYkikgVyeZiciCggIVVnElhSEuLfF7eNXRQgsH7FmgJomjmzyQH6ud/PDsr/fMOeiUTm6T+s97PCQl/hXprJEy5kzRHa8jBQl+YMAmxWlg1vt7Brj9LLvp0loh0cwj4TTFR6Ui0+HbBaiuc83FrMc53F4c3EAfgAE///////////////+/////gAAAAF1cQB+AAgAAACAG7ErO+ATPDFn4JxJ284yfEVlw0FzEcbvFzmrJWlsWcygT6kqOXu2lrf3/nyvm9vJNO9wClwiBxBzSjyMVZUyeSCmk2dV5RYwMDP33HmCkL5PCZLtdnJMVP2JU8V/fSB+qUUkhrnwRIu5nAMP4MNx0Lo1HlQGpmWVJsCAkGdYigN4c3EAfgAE///////////////+/////gAAAAF1cQB+AAgAAAEQEh+zMAlelabxGdY1D/mDw28KYHJxPFxo1+vNJt6Z55AlXzD1mVW6YNoTSfAgxHaYYSzJ/YSlB7Pz3leW5ONxj+nI84jtNKtqiUcEHP44seQGCzIsAz69JVEEuSzj1iLG9Y41XDgtfCknV//qwIckaybFimKffEydm7IrNq04/rI+goK8Fw8ZYCOWrRxOtX352DLOgwwsCl1AyZHDcveW1ppUQkriVXz6r3bvbjHDv0geuda4MvHiu4u/5TvTr2xD+zF546tqxSRU2yT39xYUK3vr+e2PX/HvU71ZpuS2KxnEO+3uZuEqH+tITkRHoYdBRtY4DzGc5r0OmId55vT+vGnHsinoH6x92Xp6yXVU+154";
+		
+		conn.send(CallType.ThreshSigVerifyCall, Json.createObjectBuilder()
+				.add("crypto", Json.createObjectBuilder()
+						.add("group-key", pubkey)
+						.add("signatures", Json.createArrayBuilder()
+								.add(sigshares[0])
+								.add(sigshares[1])
+								.add(sigshares[2])
+								.add(sigshares[3])
+								.add(sigshares[4])))
+				.add("msg", "lorem ipsum dolor sit amet, " +
+						"consectetur adipiscing elit, " + 
+					 	"sed do eiusmod tempor incididunt " + 
+						"ut labore et dolore magna aliqua.")
+				.build()
+				.toString().getBytes("UTF-8"));
+		
+		recv = new byte[1000];
+		br = new BufferedReader(
+				new InputStreamReader(new ByteArrayInputStream(recv), "UTF-8")
+		);
+
+		conn.receive(recv);
+		recvCall = br.readLine();		// get the call name
+		payload = br.readLine();			// get the payload
+		
+		System.out.println("12. Result of verification = " + payload);
+		System.out.println("E2E test done.");
 	}
 	
 	public void start() throws IOException, InterruptedException {
