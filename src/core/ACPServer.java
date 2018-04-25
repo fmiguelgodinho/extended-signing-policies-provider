@@ -39,13 +39,13 @@ import threshsig.SigShare;
 * 
 * 
 */
-public class ACPModule {
+public class ACPServer {
 
 	private String socketFileName;
 	private int socketType;
 	private int errors;
 
-	public ACPModule(String pSocketFileName, int pSocketType) 
+	public ACPServer(String pSocketFileName, int pSocketType) 
 	throws IOException
 	{
 		socketFileName = pSocketFileName;
@@ -446,6 +446,38 @@ public class ACPModule {
 		payload = br.readLine();			// get the payload
 		
 		System.out.println("10. Result of verification = " + payload);
+	}
+	
+	public void start() throws IOException, InterruptedException {
+		
+		// do it now to avoid any race condition between socket creation and client first start
+		final UnixDomainSocketServer server = initServer();
+		
+		try {
+			Thread serverThread = new Thread()
+			{
+				public void run()
+				{
+					try {
+						runServer(server);
+					}
+					catch (IOException e)
+					{
+						logError(new Object[]{"Server socket failure"},e);
+					} catch (ClassNotFoundException e) {
+						logError(new Object[]{"Server deserialization failure"},e);
+					}
+				}
+			};
+			serverThread.join();
+		}
+		finally
+		{
+			if (server !=null)
+			{
+				server.unlink();
+			}
+		}
 	}
 	
 	

@@ -2,7 +2,7 @@ import java.io.IOException;
 
 import com.etsy.net.JUDS;
 
-import core.ACPModule;
+import core.ACPServer;
 
 public class Main {
 
@@ -16,21 +16,22 @@ public class Main {
 		}
 		
 		try {
-			ACPModule mod = new ACPModule(args[0], JUDS.SOCK_STREAM);
+			ACPServer srv = new ACPServer(args[0], JUDS.SOCK_STREAM);
 			
 			try {
-				mod.fullTest();
+//				srv.fullTest();
+				srv.start();
 			}
 			catch (Exception exception)
 			{
-				mod.logError(null, exception);
+				srv.logError(null, exception);
 			}
 				
-			if (mod !=null)
+			if (srv !=null)
 			{
-				if (mod.getErrors() == 0)
+				if (srv.getErrors() == 0)
 				{
-					System.out.println("Started ACPModule service on socket " + args[0] + "...");
+					System.out.println("Started ACP service on socket " + args[0] + "...");
 				}
 			}	
 			
