@@ -2,10 +2,12 @@ package core;
 
 public enum CallType {
 	
-	ThreshSigDealCall("__CALL_THRESH_SIG_DEAL"),		// call to gen l shares and group pubkey
-	ThreshSigDealRet("__RET_THRESH_SIG_DEAL"),
-	ThreshSigSignCall("__CALL_THRESH_SIG_SIGN"),		// call to sign using input share
-	ThreshSigSignRet("__RET_THRESH_SIG_SIGN"),
+	ThreshSigDealCall("__CALL_THRESHSIG_DEAL"),		// call to gen l shares and group pubkey
+	ThreshSigDealRet("__RETU_THRESHSIG_DEAL"),
+	ThreshSigSignCall("__CALL_THRESHSIG_SIGN"),		// call to sign using input share
+	ThreshSigSignRet("__RETU_THRESHSIG_SIGN"),
+	ThreshSigVerifyCall("__CALL_THRESHSIG_VERI"),		// call to sign using input share
+	ThreshSigVerifyRet("__RETU_THRESHSIG_VERI"),
 	NoOp("__NO_CALL");
 	
 	
@@ -22,10 +24,12 @@ public enum CallType {
 	static CallType parseCall(String callName) {
 		
 		switch (callName) {
-			case "__CALL_THRESH_SIG_DEAL":
+			case "__CALL_THRESHSIG_DEAL":
 				return ThreshSigDealCall;
-			case "__CALL_THRESH_SIG_SIGN":
+			case "__CALL_THRESHSIG_SIGN":
 				return ThreshSigSignCall;
+			case "__CALL_THRESHSIG_VERI":
+				return ThreshSigVerifyCall;
 		}
 		
 		return NoOp;

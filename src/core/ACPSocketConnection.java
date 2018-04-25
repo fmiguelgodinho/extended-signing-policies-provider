@@ -3,7 +3,6 @@ package core;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
 
 import com.etsy.net.UnixDomainSocket;
@@ -52,6 +51,7 @@ public class ACPSocketConnection {
 			bb.put((byte) 0x0a);
 			bb.put(payload);
 		}
+		
 		
 		os.write(bb.array());
 		os.flush();

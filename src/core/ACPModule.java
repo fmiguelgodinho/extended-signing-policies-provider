@@ -2,17 +2,24 @@ package core;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
-import java.math.BigInteger;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
 
-import com.etsy.net.JUDS;
+import javax.json.Json;
+import javax.json.JsonArray;
+import javax.json.JsonArrayBuilder;
+import javax.json.JsonObject;
+import javax.json.JsonReader;
+import javax.json.JsonString;
+
 import com.etsy.net.UnixDomainSocket;
 import com.etsy.net.UnixDomainSocketClient;
 import com.etsy.net.UnixDomainSocketServer;
@@ -21,8 +28,6 @@ import threshsig.Dealer;
 import threshsig.GroupKey;
 import threshsig.KeyShare;
 import threshsig.SigShare;
-
-import javax.json.*;
 
 
 /* ACP Module
@@ -39,8 +44,9 @@ public class ACPModule {
 	private String socketFileName;
 	private int socketType;
 	private int errors;
-	
-	public ACPModule(String pSocketFileName, int pSocketType)
+
+	public ACPModule(String pSocketFileName, int pSocketType) 
+	throws IOException
 	{
 		socketFileName = pSocketFileName;
 		socketType = pSocketType;
@@ -53,8 +59,12 @@ public class ACPModule {
 		 return new UnixDomainSocketServer(socketFileName, socketType, 3);
 	}
 	
+	public int getErrors() {
+		return errors;
+	}
+	
 	public void runServer(UnixDomainSocketServer serverSocket)
-	throws IOException
+	throws IOException, ClassNotFoundException
 	{
 		UnixDomainSocket socket = serverSocket.accept();  // we only need to accept once 	
 		ACPSocketConnection conn = new ACPSocketConnection("Server -> Client:" + socketFileName, socket);
@@ -63,7 +73,7 @@ public class ACPModule {
 		
 		while (true) {
 			
-			recv = new byte[4096];
+			recv = new byte[16000];
 			conn.receive(recv);
 			
 			BufferedReader br = new BufferedReader(
@@ -85,7 +95,9 @@ public class ACPModule {
 			jread.close();
 			
 			CallType respCall = null;
-			JsonObject respJson = null;
+			JsonObject respJson = null, cryptoInfo = null;
+			String message = null;
+			ObjectInputStream in = null;
 			
 			switch (CallType.parseCall(recvCall)) {
 			
@@ -94,23 +106,57 @@ public class ACPModule {
 					int l = recvJson.getInt("l");
 					int k = recvJson.getInt("k");
 					
+					// call deal fn and set return
 					respCall = CallType.ThreshSigDealRet;
-					respJson = generateThreshSigInfo(keySize, l, k);
+					respJson = genCryptoMaterial_ThreshSig(keySize, l, k);
 					break;
 					
 				case ThreshSigSignCall:
 					
-					JsonObject cryptoInfo = recvJson.getJsonObject("crypto");
-					JsonObject message = recvJson.getJsonObject("msg");
+					cryptoInfo = recvJson.getJsonObject("crypto");
+					message = recvJson.getString("msg");
+					String encShare = cryptoInfo.getString("share");
 					
-					int id = cryptoInfo.getInt("id");
-					BigInteger secret = new BigInteger(cryptoInfo.getString("secret"));
-					BigInteger verifier = new BigInteger(cryptoInfo.getString("verifier"));
-					BigInteger groupKeyMod = new BigInteger(cryptoInfo.getString("group-key-mod"));
-					BigInteger delta = new BigInteger(cryptoInfo.getString("delta"));
+					byte[] serializedShare = Base64.getDecoder().decode(encShare.getBytes());
 					
+					// deserialize share
+					in = new ObjectInputStream(new ByteArrayInputStream(serializedShare));
+					KeyShare sh = (KeyShare) in.readObject();
+					
+					// call sign fn and set return
 					respCall = CallType.ThreshSigSignRet;
-					respJson = signPayload(id, secret, verifier, groupKeyMod, delta, message.toString().getBytes());
+					respJson = sign_ThreshSig(sh, message.getBytes());
+					break;
+					
+				case ThreshSigVerifyCall:
+					
+					cryptoInfo = recvJson.getJsonObject("crypto");
+					message = recvJson.getString("msg");
+					
+					String encGroupKey = cryptoInfo.getString("group-key");
+					byte[] serializedGroupKey = Base64.getDecoder().decode(encGroupKey.getBytes());
+					
+					// deserialize gk
+					in = new ObjectInputStream(new ByteArrayInputStream(serializedGroupKey));
+					GroupKey gk = (GroupKey) in.readObject();
+					
+					// deserialize sig shares
+					JsonArray arr = cryptoInfo.getJsonArray("signatures");
+					SigShare[] sigs = new SigShare[arr.size()];
+					
+					for (int i = 0; i < arr.size(); i++) {
+						
+						String encSig = ((JsonString) arr.get(i)).getString();
+						byte[] serializedSig = Base64.getDecoder().decode(encSig.getBytes());
+						in = new ObjectInputStream(new ByteArrayInputStream(serializedSig));
+						SigShare sig = (SigShare) in.readObject();
+						
+						sigs[i] = sig;
+					}
+					
+					// call verify fn and set return
+					respCall = CallType.ThreshSigVerifyRet;
+					respJson = verify_ThreshSig(gk, sigs, message.getBytes());
 					break;
 					
 				default:
@@ -131,12 +177,21 @@ public class ACPModule {
 		}
 	}
 	
-	private JsonObject signPayload(int id, BigInteger secret, BigInteger n, BigInteger verifier, BigInteger delta, byte[] message)
+	private JsonObject sign_ThreshSig(KeyShare sh, byte[] message) 
+	throws IOException
 	{
-		KeyShare rebuiltShare = new KeyShare(id, secret, n, delta);
+		// sign the message bytes
+		SigShare sig = sh.sign(message);
 		
-		SigShare sig = rebuiltShare.sign(message);
-		byte[] sigBytes = sig.getBytes();
+		// open java serializer
+		ByteArrayOutputStream buf = new ByteArrayOutputStream();
+		ObjectOutputStream out = new ObjectOutputStream(buf);
+		out.writeObject(sig);
+		
+		// encode to b64 and put into json
+		byte[] sigBytes = Base64.getEncoder().encode(buf.toByteArray());
+		
+		out.close();
 		
 		return Json.createObjectBuilder()
 				.add("signature", new String(sigBytes))
@@ -144,7 +199,20 @@ public class ACPModule {
 	}
 	
 	
-	private JsonObject generateThreshSigInfo(int keySize, int l, int k) 
+	private JsonObject verify_ThreshSig(GroupKey gk, SigShare[] sigs, byte[] message) 
+	throws IOException
+	{
+		// verify message sig
+		boolean isValid = SigShare.verify(message, sigs, 
+				gk.getK(), gk.getL(), gk.getModulus(), gk.getExponent());
+		
+		return Json.createObjectBuilder()
+				.add("valid", isValid)
+				.build();
+	}
+	
+	
+	private JsonObject genCryptoMaterial_ThreshSig(int keySize, int l, int k) 
 	throws UnsupportedEncodingException, IOException 
 	{
 		//TODO change to protobuf
@@ -153,34 +221,45 @@ public class ACPModule {
 		Dealer d = new Dealer(keySize);
 		
 		// Generate a set of key shares
-		d.generateKeys(l, k);
+		d.generateKeys(k, l);
 		
 		// Get public group key and private key shares: careful with the shares!
 		GroupKey gk = d.getGroupKey();
 		KeyShare[] keys = d.getShares();
 		
+		// open java serializer
+		
 		// create Json object from this info
 		JsonArrayBuilder jabShares = Json.createArrayBuilder();
 		for (KeyShare sh : keys) {
+
+			// serialize shares
+			ByteArrayOutputStream buf = new ByteArrayOutputStream();
+			ObjectOutputStream out = new ObjectOutputStream(buf);
+			out.writeObject(sh);
+			out.close();
+			
+			byte[] shBytes = Base64.getEncoder().encode(buf.toByteArray());
+			
 			jabShares.add(Json.createObjectBuilder()
-					.add("id", sh.getId())
-					.add("secret", sh.getSecret())
-					.add("verifier", sh.getVerifier())
-					// shares will need two additional params to reconstruct:
-					// n - get the modulus of the group key
-					// l - get the exponent of l from the group key
+				.add("id", sh.getId())
+				.add("share", new String(shBytes))
 			);
 		}
 		
+
+		ByteArrayOutputStream buf = new ByteArrayOutputStream();
+		ObjectOutputStream out = new ObjectOutputStream(buf);
+		out.writeObject(gk);
+
+		byte[] gkBytes = Base64.getEncoder().encode(buf.toByteArray());
+		
 		JsonObject cryptoInfo = Json.createObjectBuilder()
-				.add("group-key", Json.createObjectBuilder()
-					.add("mod", gk.getModulus())
-					.add("exp", gk.getExponent())
-					.add("k", gk.getK())
-					.add("l", gk.getL())
-				)
+				.add("group-key", new String(gkBytes))
 				.add("shares", jabShares)
 				.build();
+		
+		out.close();
 		
 		return cryptoInfo;
 	}
@@ -200,32 +279,86 @@ public class ACPModule {
 	throws IOException, InterruptedException
 	{
 		UnixDomainSocketClient clientSocket = new UnixDomainSocketClient(socketFileName, socketType);
-		ACPSocketConnection connection = new ACPSocketConnection("Client -> Server:" + socketFileName, clientSocket);		
+		ACPSocketConnection conn = new ACPSocketConnection("Client -> Server:" + socketFileName, clientSocket);		
 		
 		// emulate deal call
+		byte[] recv = new byte[16000];
+		BufferedReader br = new BufferedReader(
+				new InputStreamReader(new ByteArrayInputStream(recv), "UTF-8")
+		);
 		
-		connection.send(CallType.ThreshSigDealCall, Json.createObjectBuilder()
+		conn.send(CallType.ThreshSigDealCall, Json.createObjectBuilder()
 				.add("l", 8)
-				.add("k", 6)
+				.add("k", 5)
 				.add("key-size", 512)
 				.build()
 				.toString().getBytes("UTF-8"));
 		
-		Thread.sleep(1000);
+
+		conn.receive(recv);
+		String recvCall = br.readLine();		// get the call name
+		String payload = br.readLine();			// get the payload
 		
-		connection.send(CallType.ThreshSigSignCall, Json.createObjectBuilder()
+
+		JsonReader jread = Json.createReader(new StringReader(payload));
+		JsonObject recvJson = jread.readObject();
+		jread.close();
+		
+		String pubkey = recvJson.getString("group-key");
+		
+		Thread.sleep(2000);
+
+		int[] sharepos = {0, 2, 3, 5, 7};
+		String[] sigshares = new String[5];
+		for (int i = 0; i < 5; i++) {
+			
+			JsonObject shobj = recvJson.getJsonArray("shares").get(sharepos[i]).asJsonObject();
+			
+			int myid = shobj.getInt("id");
+			String mysh = shobj.getString("share");
+		
+			conn.send(CallType.ThreshSigSignCall, Json.createObjectBuilder()
+					.add("crypto", Json.createObjectBuilder()
+							.add("id", myid)
+							.add("share", mysh))
+					.add("msg", "lorem ipsum dolor sit amet, " +
+								"consectetur adipiscing elit, " + 
+							 	"sed do eiusmod tempor incididunt " + 
+								"ut labore et dolore magna aliqua.")
+					.build()
+					.toString().getBytes("UTF-8"));
+
+			recv = new byte[16000];
+			br = new BufferedReader(
+					new InputStreamReader(new ByteArrayInputStream(recv), "UTF-8")
+			);
+
+			conn.receive(recv);
+			recvCall = br.readLine();		// get the call name
+			payload = br.readLine();			// get the payload
+			
+
+			jread = Json.createReader(new StringReader(payload));
+			JsonObject recvJson2 = jread.readObject();
+			jread.close();
+			
+			sigshares[i] = recvJson2.getString("signature");
+			Thread.sleep(1000);
+		}
+		
+		conn.send(CallType.ThreshSigVerifyCall, Json.createObjectBuilder()
 				.add("crypto", Json.createObjectBuilder()
-						.add("id", 1)
-						.add("secret", "10727420309829906525352996079833348708267470306578275297502475763563182530358570770147720116050131771957471383523157655614262286494901587606732156075487972172610516027174295393382006776182766946820720579036912363173618801259441055230087331758077951357917356551824955614546863298958849312781746579120736753362063619421802714371789863195946859304160")
-						.add("verifier", "28097948391887958392526830312920760289826519950299350809244282238332182175819438274024756914775046373766580671723685494926792450035766691998221036021989391761895355988431703311946111374339741703313561492736652518476442130149596294526528745261673227934483323620670139252123714528876288532162087285639867342570")
-						.add("group-key-mod", "55646919153154303327633441910368951325134328009878805854939551252824659381385343746707649069079367112309924280775782341304039902321190383987415435795445687493109555975894397847596229272487758277189190212627005306170430773080131405543976392657930186574317802023936351701212622467511322228817548988643887096443")
-						.add("delta", "40320"))
-				.add("msg", Json.createObjectBuilder()
-						.add("tx_id", 2182381)
-						.add("transaction_from", "bill")
-						.add("transaction_to", "mandy")
-						.add("value", 123131.329329)
-						.add("ccid", "eccc"))
+						.add("group-key", pubkey)
+						.add("signatures", Json.createArrayBuilder()
+								.add(sigshares[0])
+								.add(sigshares[1])
+								.add(sigshares[2])
+								.add(sigshares[3])
+								.add(sigshares[4])))
+				.add("msg", "lorem ipsum dolor sit amet, " +
+							"consectetur adipiscing elit, " + 
+						 	"sed do eiusmod tempor incididunt " + 
+							"ut labore et dolore magna aliqua.")
 				.build()
 				.toString().getBytes("UTF-8"));
 	}
@@ -246,9 +379,11 @@ public class ACPModule {
 					try {
 						runServer(server);
 					}
-					catch (IOException ioException)
+					catch (IOException e)
 					{
-						logError(new Object[]{"Server socket failure"},ioException);
+						logError(new Object[]{"Server socket failure"},e);
+					} catch (ClassNotFoundException e) {
+						logError(new Object[]{"Server deserialization failure"},e);
 					}
 				}
 			};
@@ -282,32 +417,6 @@ public class ACPModule {
 				server.unlink();
 			}
 		}
-	}
-		
-	public static void main(String[] args)
-	{
-		if (args.length != 1) {
-			System.out
-					.println("usage: java ACPModule <socket-file-path>");
-			System.exit(1);
-		}
-		ACPModule thisTest = new ACPModule(args[0], JUDS.SOCK_STREAM);
-		
-		try {
-			thisTest.fullTest();
-		}
-		catch (Exception exception)
-		{
-			thisTest.logError(null, exception);
-		}
-			
-		if (thisTest !=null)
-		{
-			if (thisTest.errors == 0)
-			{
-				System.out.println("Started ACPModule service on socket " + args[0] + "...");
-			}
-		}	
 	}
 
 }
