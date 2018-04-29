@@ -500,7 +500,7 @@ public class ACPServer {
 					}
 				}
 			};
-			serverThread.join();
+			serverThread.start();
 		}
 		finally
 		{
