@@ -19,8 +19,8 @@ public class Main {
 			ACPServer srv = new ACPServer(args[0], JUDS.SOCK_STREAM);
 			
 			try {
-//				srv.fullTest();
-				srv.start();
+//				srv.start();
+				srv.fullTest();
 			}
 			catch (Exception exception)
 			{

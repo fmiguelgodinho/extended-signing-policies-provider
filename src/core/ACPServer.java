@@ -18,6 +18,7 @@ import javax.json.JsonObject;
 import javax.json.JsonReader;
 import javax.json.JsonString;
 
+import com.etsy.net.JUDS;
 import com.etsy.net.UnixDomainSocket;
 import com.etsy.net.UnixDomainSocketClient;
 import com.etsy.net.UnixDomainSocketServer;
@@ -281,7 +282,7 @@ public class ACPServer {
 	public void runClient()
 	throws IOException, InterruptedException
 	{
-		UnixDomainSocketClient clientSocket = new UnixDomainSocketClient(socketFileName, socketType);
+		UnixDomainSocketClient clientSocket = new UnixDomainSocketClient("/tmp/hlf-acp.sock", JUDS.SOCK_STREAM);
 		ACPSocketConnection conn = new ACPSocketConnection("Client -> Server:" + socketFileName, clientSocket);		
 		
 		// emulate deal call
@@ -556,14 +557,14 @@ public class ACPServer {
 			clientThread.start();
 			clientThread.join();
 	
-			serverThread.join();
+//			serverThread.join();
 		}
 		finally
 		{
-			if (server !=null)
-			{
-				server.unlink();
-			}
+//			if (server !=null)
+//			{
+//				server.unlink();
+//			}
 		}
 	}
 
