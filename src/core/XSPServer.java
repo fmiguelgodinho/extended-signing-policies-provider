@@ -29,22 +29,22 @@ import threshsig.KeyShare;
 import threshsig.SigShare;
 
 
-/* ACP Module
+/* XSP Module
 * 
-* Advanced Cryptographic Provider for Peer/Orderer processes within the HLF blockchain network
+* Extended Signing Policies Provider for Peer processes within the HLF blockchain network
 * 
 * Supports:
 * 	- Victor Shoup's Practical Threshold Signatures (https://github.com/sweis/threshsig)
 * 
 * 
 */
-public class ACPServer {
+public class XSPServer {
 
 	private String socketFileName;
 	private int socketType;
 	private int errors;
 
-	public ACPServer(String pSocketFileName, int pSocketType) 
+	public XSPServer(String pSocketFileName, int pSocketType) 
 	throws IOException
 	{
 		socketFileName = pSocketFileName;
@@ -66,7 +66,7 @@ public class ACPServer {
 	throws IOException, ClassNotFoundException
 	{
 		UnixDomainSocket socket = serverSocket.accept();  // we only need to accept once 	
-		ACPSocketConnection conn = new ACPSocketConnection("Server -> Client:" + socketFileName, socket);
+		XSPSocketConnection conn = new XSPSocketConnection("Server -> Client:" + socketFileName, socket);
 		
 		byte[] recv;
 		
@@ -282,8 +282,8 @@ public class ACPServer {
 	public void runClient()
 	throws IOException, InterruptedException
 	{
-		UnixDomainSocketClient clientSocket = new UnixDomainSocketClient("/tmp/hlf-acp.sock", JUDS.SOCK_STREAM);
-		ACPSocketConnection conn = new ACPSocketConnection("Client -> Server:" + socketFileName, clientSocket);		
+		UnixDomainSocketClient clientSocket = new UnixDomainSocketClient("/tmp/hlf-xsp.sock", JUDS.SOCK_STREAM);
+		XSPSocketConnection conn = new XSPSocketConnection("Client -> Server:" + socketFileName, clientSocket);		
 		
 		// emulate deal call
 		byte[] recv = new byte[16000];

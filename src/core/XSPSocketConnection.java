@@ -7,14 +7,14 @@ import java.nio.ByteBuffer;
 
 import com.etsy.net.UnixDomainSocket;
 
-public class ACPSocketConnection {
+public class XSPSocketConnection {
 	
 	private String description;
 	private InputStream is;
 	private OutputStream os;
 	
 	
-	public ACPSocketConnection(String description, UnixDomainSocket unixDomainSocket)
+	public XSPSocketConnection(String description, UnixDomainSocket unixDomainSocket)
 	throws IOException
 	{
 		this.description = description;

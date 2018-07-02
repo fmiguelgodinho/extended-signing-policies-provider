@@ -2,7 +2,7 @@ import java.io.IOException;
 
 import com.etsy.net.JUDS;
 
-import core.ACPServer;
+import core.XSPServer;
 
 public class Main {
 
@@ -11,12 +11,12 @@ public class Main {
 	{
 		if (args.length != 1) {
 			System.out
-					.println("usage: java ACPModule <socket-file-path>");
+					.println("usage: java Main <socket-file-path>");
 			System.exit(1);
 		}
 		
 		try {
-			ACPServer srv = new ACPServer(args[0], JUDS.SOCK_STREAM);
+			XSPServer srv = new XSPServer(args[0], JUDS.SOCK_STREAM);
 			
 			try {
 //				srv.start();
@@ -31,7 +31,7 @@ public class Main {
 			{
 				if (srv.getErrors() == 0)
 				{
-					System.out.println("Started ACP service on socket " + args[0] + "...");
+					System.out.println("Started XSP service on socket " + args[0] + "...");
 				}
 			}	
 			
