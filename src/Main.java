@@ -19,8 +19,8 @@ public class Main {
 			XSPServer srv = new XSPServer(args[0], JUDS.SOCK_STREAM);
 			
 			try {
-//				srv.start();
-				srv.fullTest();
+				srv.start();
+//				srv.fullTest();
 			}
 			catch (Exception exception)
 			{
