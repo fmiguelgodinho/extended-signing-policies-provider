@@ -132,8 +132,7 @@ public class XSPServer {
 						byte[] sigBytes = Base64.getDecoder().decode(sig64Bytes);
 						
 						
-						SigShare sig = new SigShare(sigid, sigBytes);
-						sigs[i] = sig;
+						sigs[i] = new SigShare(sigid, sigBytes);
 					}
 					
 					// call verify fn and set return

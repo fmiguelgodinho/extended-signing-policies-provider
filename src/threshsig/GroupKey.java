@@ -82,7 +82,7 @@ public class GroupKey {
   
   @Override
   public String toString() {
-	
+
 	byte[] expBytes = e.toByteArray();
 	byte[] modBytes = n.toByteArray();
   
@@ -117,18 +117,20 @@ public class GroupKey {
 	  ByteBuffer bb = ByteBuffer.wrap(groupKeyBytes);
 	 
 	  // get k and l
-	  final int k = bb.getInt();
-	  final int l = bb.getInt();
+	  int k = bb.getInt();
+	  int l = bb.getInt();
 	  
 	  // get exp
 	  int expBytesLen = bb.getInt();
 	  byte[] expBytes = new byte[expBytesLen];
-	  final BigInteger exp = new BigInteger(bb.get(expBytes, 0, expBytesLen).array());
+	  bb.get(expBytes, 0, expBytesLen);
+	  BigInteger exp = new BigInteger(expBytes);
 
 	  // get mod
 	  int modBytesLen = bb.getInt();
 	  byte[] modBytes = new byte[modBytesLen];
-	  final BigInteger mod = new BigInteger(bb.get(modBytes, 0, modBytesLen).array());
+	  bb.get(modBytes, 0, modBytesLen);
+	  BigInteger mod = new BigInteger(modBytes);
 	  
 	  // return new key
 	  return new GroupKey(k, l, exp, mod);

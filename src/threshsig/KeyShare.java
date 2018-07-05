@@ -226,32 +226,37 @@ public class KeyShare {
 	  ByteBuffer bb = ByteBuffer.wrap(keyShareBytes);
 	 
 	  // get id
-	  final int id = bb.getInt();
+	  int id = bb.getInt();
 	  
 	  // get secret
 	  int secretBytesLen = bb.getInt();
 	  byte[] secretBytes = new byte[secretBytesLen];
-	  final BigInteger secret = new BigInteger(bb.get(secretBytes, 0, secretBytesLen).array());
+	  bb.get(secretBytes, 0, secretBytesLen);
+	  BigInteger secret = new BigInteger(secretBytes);
 
 	  // get n
 	  int nBytesLen = bb.getInt();
 	  byte[] nBytes = new byte[nBytesLen];
-	  final BigInteger n = new BigInteger(bb.get(nBytes, 0, nBytesLen).array());
+	  bb.get(nBytes, 0, nBytesLen);
+	  BigInteger n = new BigInteger(nBytes);
 	 
 	  // get delta
 	  int deltaBytesLen = bb.getInt();
 	  byte[] deltaBytes = new byte[deltaBytesLen];
-	  final BigInteger delta = new BigInteger(bb.get(deltaBytes, 0, deltaBytesLen).array());
+	  bb.get(deltaBytes, 0, deltaBytesLen);
+	  BigInteger delta = new BigInteger(deltaBytes);
 	  
 	  // get verifier
 	  int verifierBytesLen = bb.getInt();
 	  byte[] verifierBytes = new byte[verifierBytesLen];
-	  final BigInteger verifier = new BigInteger(bb.get(verifierBytes, 0, verifierBytesLen).array());
+	  bb.get(verifierBytes, 0, verifierBytesLen);
+	  BigInteger verifier = new BigInteger(verifierBytes);
 	  
 	  // get n
 	  int gVerifierBytesLen = bb.getInt();
 	  byte[] gVerifierBytes = new byte[gVerifierBytesLen];
-	  final BigInteger gVerifier = new BigInteger(bb.get(gVerifierBytes, 0, gVerifierBytesLen).array());
+	  bb.get(gVerifierBytes, 0, gVerifierBytesLen);
+	  BigInteger gVerifier = new BigInteger(gVerifierBytes);
 	  
 	  // return new key
 	  return new KeyShare(id, secret, n, delta, verifier, gVerifier);
