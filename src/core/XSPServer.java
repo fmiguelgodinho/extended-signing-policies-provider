@@ -273,9 +273,9 @@ public class XSPServer {
 		jread.close();
 		
 		String pubkey = recvJson.getString("group-key");
-		
 
-		System.out.println("2. Successfully got group key and shares.");
+		System.out.println("2. Successfully got group key and shares:" + recvJson);
+		
 		
 //		Thread.sleep(2000);
 
