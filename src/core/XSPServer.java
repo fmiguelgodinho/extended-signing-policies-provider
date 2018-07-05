@@ -61,101 +61,104 @@ public class XSPServer {
 	public void runServer(UnixDomainSocketServer serverSocket)
 	throws IOException, ClassNotFoundException
 	{
-		UnixDomainSocket socket = serverSocket.accept();  // we only need to accept once 	
-		XSPSocketConnection conn = new XSPSocketConnection("Server -> Client:" + socketFileName, socket);
-		
-		byte[] recv;
-		
 		while (true) {
+			UnixDomainSocket socket = serverSocket.accept();  // we only need to accept once 	
+			XSPSocketConnection conn = new XSPSocketConnection("Server -> Client:" + socketFileName, socket);
 			
-			recv = new byte[16000];
-			conn.receive(recv);
-			
-			BufferedReader br = new BufferedReader(
-				new InputStreamReader(new ByteArrayInputStream(recv), "UTF-8")
-			);
-			
-			String recvCall = br.readLine();		// get the call name
-			String payload = br.readLine();			// get the payload
-			
-			if (recvCall == null || recvCall.isEmpty()) {
-				logError(null, new Exception("Unexpected: Call was empty!"));
-				continue;
-			}
-			
-//			System.out.println("Received callName: " + recvCall + " payload: " + payload);
-			
-			JsonReader jread = Json.createReader(new StringReader(payload));
-			JsonObject recvJson = jread.readObject();
-			jread.close();
-			
-			CallType respCall = null;
-			JsonObject respJson = null;
-			String message = null;
-			
-			switch (CallType.parseCall(recvCall)) {
-			
-				case ThreshSigDealCall:
-					int keySize = recvJson.getInt("key-size");
-					int l = recvJson.getInt("l");
-					int k = recvJson.getInt("k");
-					
-					// call deal fn and set return
-					respCall = CallType.ThreshSigDealRet;
-					respJson = genCryptoMaterial_ThreshSig(keySize, l, k);
-					break;
-					
-				case ThreshSigSignCall:
-					
-					String share = recvJson.getString("share");
-					message = recvJson.getString("msg");
-					
-					// call sign fn and set return
-					respCall = CallType.ThreshSigSignRet;
-					respJson = sign_ThreshSig(share.getBytes("UTF-8"), message.getBytes("UTF-8"));
-					break;
-					
-				case ThreshSigVerifyCall:
-
-					String groupKey = recvJson.getString("group-key");
-					message = recvJson.getString("msg");
-					
-					// deserialize sig shares
-					JsonArray arr = recvJson.getJsonArray("signatures");
-					SigShare[] sigs = new SigShare[arr.size()];
-					
-					for (int i = 0; i < arr.size(); i++) {
-						
-						JsonObject sigObj = arr.getJsonObject(i);
-						int sigid = sigObj.getInt("id");
-						byte[] sig64Bytes = sigObj.getString("signature").getBytes("UTF-8");
-						byte[] sigBytes = Base64.getDecoder().decode(sig64Bytes);
-						
-						
-						sigs[i] = new SigShare(sigid, sigBytes);
-					}
-					
-					// call verify fn and set return
-					respCall = CallType.ThreshSigVerifyRet;
-					respJson = verify_ThreshSig(groupKey.getBytes("UTF-8"), sigs, message.getBytes("UTF-8"));
-					break;
-					
-				default:
-					logError(null, new Exception("Unexpected: Unknown call!"));
-					System.out.println("Unexpected: Unknown call!");
-			}
-			
-			if (respCall == null) {
-				logError(null, new Exception("Error: Wasn't able to find an appropriate response. Continuing..."));
-				continue;
-			}
-			
-			if (respJson == null) {
-				conn.send(respCall);
-			} else {
-				conn.send(respCall, respJson.toString().getBytes("UTF-8"));
-			}
+			while (true) {
 				
+				byte[] recv = new byte[4096];
+				int recvNr = conn.receive(recv);
+				
+				if (recvNr < 0) 
+					break;
+				
+				BufferedReader br = new BufferedReader(
+					new InputStreamReader(new ByteArrayInputStream(recv), "UTF-8")
+				);
+				
+				String recvCall = br.readLine();		// get the call name
+				String payload = br.readLine();			// get the payload
+				
+				if (recvCall == null || recvCall.isEmpty() || CallType.parseCall(recvCall) == CallType.NoOp) {
+					logError(null, new Exception("Unexpected: Call was empty!"));
+					continue;
+				}
+				
+	//			System.out.println("Received callName: " + recvCall + " payload: " + payload);
+				
+				JsonReader jread = Json.createReader(new StringReader(payload));
+				JsonObject recvJson = jread.readObject();
+				jread.close();
+				
+				CallType respCall = null;
+				JsonObject respJson = null;
+				String message = null;
+				
+				switch (CallType.parseCall(recvCall)) {
+				
+					case ThreshSigDealCall:
+						int keySize = recvJson.getInt("key-size");
+						int l = recvJson.getInt("l");
+						int k = recvJson.getInt("k");
+						
+						// call deal fn and set return
+						respCall = CallType.ThreshSigDealRet;
+						respJson = genCryptoMaterial_ThreshSig(keySize, l, k);
+						break;
+						
+					case ThreshSigSignCall:
+						
+						String share = recvJson.getString("share");
+						message = recvJson.getString("msg");
+						
+						// call sign fn and set return
+						respCall = CallType.ThreshSigSignRet;
+						respJson = sign_ThreshSig(share.getBytes("UTF-8"), message.getBytes("UTF-8"));
+						break;
+						
+					case ThreshSigVerifyCall:
+	
+						String groupKey = recvJson.getString("group-key");
+						message = recvJson.getString("msg");
+						
+						// deserialize sig shares
+						JsonArray arr = recvJson.getJsonArray("signatures");
+						SigShare[] sigs = new SigShare[arr.size()];
+						
+						for (int i = 0; i < arr.size(); i++) {
+							
+							JsonObject sigObj = arr.getJsonObject(i);
+							int sigid = sigObj.getInt("id");
+							byte[] sig64Bytes = sigObj.getString("signature").getBytes("UTF-8");
+							byte[] sigBytes = Base64.getDecoder().decode(sig64Bytes);
+							
+							
+							sigs[i] = new SigShare(sigid, sigBytes);
+						}
+						
+						// call verify fn and set return
+						respCall = CallType.ThreshSigVerifyRet;
+						respJson = verify_ThreshSig(groupKey.getBytes("UTF-8"), sigs, message.getBytes("UTF-8"));
+						break;
+						
+					default:
+						logError(null, new Exception("Unexpected: Unknown call!"));
+						System.out.println("Unexpected: Unknown call!");
+				}
+				
+				if (respCall == null) {
+					logError(null, new Exception("Error: Wasn't able to find an appropriate response. Continuing..."));
+					continue;
+				}
+				
+				if (respJson == null) {
+					conn.send(respCall);
+				} else {
+					conn.send(respCall, respJson.toString().getBytes("UTF-8"));
+				}
+					
+			}
 		}
 	}
 	

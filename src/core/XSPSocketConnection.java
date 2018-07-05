@@ -24,7 +24,7 @@ public class XSPSocketConnection {
 	
 	public int receive(byte[] recv) 
 	throws IOException 
-	{		
+	{
 		int readBytes = is.read(recv);
 //		System.out.println(description + " received: " + new String(recv, "UTF-8"));
 		return readBytes;
