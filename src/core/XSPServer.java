@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
-import java.math.BigInteger;
 import java.util.Base64;
 
 import javax.json.Json;
@@ -91,7 +90,7 @@ public class XSPServer {
 			jread.close();
 			
 			CallType respCall = null;
-			JsonObject respJson = null, cryptoInfo = null;
+			JsonObject respJson = null;
 			String message = null;
 			
 			switch (CallType.parseCall(recvCall)) {
@@ -108,47 +107,28 @@ public class XSPServer {
 					
 				case ThreshSigSignCall:
 					
-					cryptoInfo = recvJson.getJsonObject("crypto");
+					String share = recvJson.getString("share");
 					message = recvJson.getString("msg");
-					JsonObject share = cryptoInfo.getJsonObject("share");
-					
-					int shid = share.getInt("id");
-					BigInteger secret = share.getJsonNumber("secret").bigIntegerValue();
-					BigInteger n = share.getJsonNumber("n").bigIntegerValue();
-					BigInteger delta = share.getJsonNumber("delta").bigIntegerValue();
-					BigInteger verifier = share.getJsonNumber("verifier").bigIntegerValue();
-					BigInteger gverifier = share.getJsonNumber("group-verifier").bigIntegerValue();
 					
 					// call sign fn and set return
 					respCall = CallType.ThreshSigSignRet;
-					KeyShare sh = new KeyShare(shid, secret, n, delta, verifier, gverifier);
-					respJson = sign_ThreshSig(sh, message.getBytes());
+					respJson = sign_ThreshSig(share.getBytes("UTF-8"), message.getBytes("UTF-8"));
 					break;
 					
 				case ThreshSigVerifyCall:
-					
-					cryptoInfo = recvJson.getJsonObject("crypto");
+
+					String groupKey = recvJson.getString("group-key");
 					message = recvJson.getString("msg");
 					
-					JsonObject groupKey = cryptoInfo.getJsonObject("group-key");
-					
-					// deserialize gk
-					int vk = groupKey.getInt("k");
-					int vl = groupKey.getInt("l");
-					int vkeySize = groupKey.getInt("key-size");
-					BigInteger vexp = groupKey.getJsonNumber("exp").bigIntegerValue();
-					BigInteger vmod = groupKey.getJsonNumber("mod").bigIntegerValue();
-					GroupKey gk = new GroupKey(vk, vl, vkeySize, null, vexp, vmod);
-					
 					// deserialize sig shares
-					JsonArray arr = cryptoInfo.getJsonArray("signatures");
+					JsonArray arr = recvJson.getJsonArray("signatures");
 					SigShare[] sigs = new SigShare[arr.size()];
 					
 					for (int i = 0; i < arr.size(); i++) {
 						
 						JsonObject sigObj = arr.getJsonObject(i);
 						int sigid = sigObj.getInt("id");
-						byte[] sig64Bytes = sigObj.getString("signature").getBytes();
+						byte[] sig64Bytes = sigObj.getString("signature").getBytes("UTF-8");
 						byte[] sigBytes = Base64.getDecoder().decode(sig64Bytes);
 						
 						
@@ -158,7 +138,7 @@ public class XSPServer {
 					
 					// call verify fn and set return
 					respCall = CallType.ThreshSigVerifyRet;
-					respJson = verify_ThreshSig(gk, sigs, message.getBytes());
+					respJson = verify_ThreshSig(groupKey.getBytes("UTF-8"), sigs, message.getBytes("UTF-8"));
 					break;
 					
 				default:
@@ -180,26 +160,29 @@ public class XSPServer {
 		}
 	}
 	
-	private JsonObject sign_ThreshSig(KeyShare ks, byte[] message) 
+	private JsonObject sign_ThreshSig(byte[] ks, byte[] message) 
 	throws IOException
 	{
+		// retrieve key share
+		KeyShare sh = KeyShare.fromBytes(ks);
+		
 		
 		// sign the message bytes
-		SigShare sig = ks.sign(message);
-		
-		byte[] b64Sig = Base64.getEncoder().encode(sig.getBytes());
-		
+		SigShare sig = sh.sign(message);
+				
 		return Json.createObjectBuilder()
 				.add("id", sig.getId())
-				.add("signature", new String(b64Sig, "UTF-8"))
+				.add("signature", sig.toString())
 				.build();
 	}
 	
 	
-	private JsonObject verify_ThreshSig(GroupKey gk, SigShare[] sigs, byte[] message) 
+	private JsonObject verify_ThreshSig(byte[] key, SigShare[] sigs, byte[] message) 
 	throws IOException
 	{
 		boolean isValid = false;
+		
+		GroupKey gk = GroupKey.fromBytes(key);
 		
 		if (gk.getK() == sigs.length) {
 			// verify message sig
@@ -216,7 +199,6 @@ public class XSPServer {
 	private JsonObject genCryptoMaterial_ThreshSig(int keySize, int l, int k) 
 	throws UnsupportedEncodingException, IOException 
 	{
-		//TODO change to protobuf
 		
 		// Initialize a dealer with a keysize
 		Dealer d = new Dealer(keySize);
@@ -233,25 +215,15 @@ public class XSPServer {
 		// create Json object from this info
 		JsonArrayBuilder jabShares = Json.createArrayBuilder();
 		for (KeyShare sh : keys) {
-
+			
 			// shares to json
 			jabShares.add(Json.createObjectBuilder()
-				.add("id", sh.getId())
-				.add("secret", sh.getSecret())
-				.add("n", sh.getN())
-				.add("delta", sh.getDelta())
-				.add("verifier", sh.getVerifier())
-				.add("group-verifier", sh.getGroupVerifier())
-			);
+					.add("id", sh.getId())
+					.add("share", sh.toString()));
 		}
 		
 		JsonObject cryptoInfo = Json.createObjectBuilder()
-				.add("group-key", Json.createObjectBuilder()
-						.add("k", gk.getK())
-						.add("l", gk.getL())
-						.add("key-size", keySize)
-						.add("exp", gk.getExponent())
-						.add("mod", gk.getModulus()))
+				.add("group-key", gk.toString())
 				.add("shares", jabShares)
 				.build();
 		
@@ -292,6 +264,7 @@ public class XSPServer {
 				+ 6 + "," + 5 + "," + 512 + ")");
 		
 		conn.receive(recv);
+		@SuppressWarnings("unused")
 		String recvCall = br.readLine();		// get the call name
 		String payload = br.readLine();			// get the payload
 	
@@ -300,7 +273,7 @@ public class XSPServer {
 		JsonObject recvJson = jread.readObject();
 		jread.close();
 		
-		JsonObject pubkey = recvJson.getJsonObject("group-key");
+		String pubkey = recvJson.getString("group-key");
 		
 
 		System.out.println("2. Successfully got group key and shares.");
@@ -319,7 +292,7 @@ public class XSPServer {
 			System.out.println("3. (" + (i+1) + "/5) Requesting signing of message m with share id = " + myid);
 		
 			conn.send(CallType.ThreshSigSignCall, Json.createObjectBuilder()
-					.add("crypto", Json.createObjectBuilder().add("share", shobj))
+					.add("share", shobj.getString("share"))
 					.add("msg", "lorem ipsum dolor sit amet, " +
 								"consectetur adipiscing elit, " + 
 							 	"sed do eiusmod tempor incididunt " + 
@@ -350,14 +323,13 @@ public class XSPServer {
 		System.out.println("5. Requesting verification of legitimate message m...");
 		
 		conn.send(CallType.ThreshSigVerifyCall, Json.createObjectBuilder()
-				.add("crypto", Json.createObjectBuilder()
-						.add("group-key", pubkey)
-						.add("signatures", Json.createArrayBuilder()
-								.add(sigshares[0])
-								.add(sigshares[1])
-								.add(sigshares[2])
-								.add(sigshares[3])
-								.add(sigshares[4])))
+				.add("group-key", pubkey)
+				.add("signatures", Json.createArrayBuilder()
+							.add(sigshares[0])
+							.add(sigshares[1])
+							.add(sigshares[2])
+							.add(sigshares[3])
+							.add(sigshares[4]))
 				.add("msg", "lorem ipsum dolor sit amet, " +
 							"consectetur adipiscing elit, " + 
 						 	"sed do eiusmod tempor incididunt " + 
@@ -379,14 +351,13 @@ public class XSPServer {
 		System.out.println("7. Requesting verification of tampered message m...");
 		
 		conn.send(CallType.ThreshSigVerifyCall, Json.createObjectBuilder()
-				.add("crypto", Json.createObjectBuilder()
-						.add("group-key", pubkey)
-						.add("signatures", Json.createArrayBuilder()
-								.add(sigshares[0])
-								.add(sigshares[1])
-								.add(sigshares[2])
-								.add(sigshares[3])
-								.add(sigshares[4])))
+				.add("group-key", pubkey)
+				.add("signatures", Json.createArrayBuilder()
+						.add(sigshares[0])
+						.add(sigshares[1])
+						.add(sigshares[2])
+						.add(sigshares[3])
+						.add(sigshares[4]))
 				.add("msg", "lorem ipsum dolor sit amet, " +
 						"consectetur VIRUS elit, " + 
 					 	"sed do eiusmod tempor incididunt " + 
@@ -408,14 +379,13 @@ public class XSPServer {
 		System.out.println("9. Requesting verification of legitimate message m with a missing signature share...");
 		
 		conn.send(CallType.ThreshSigVerifyCall, Json.createObjectBuilder()
-				.add("crypto", Json.createObjectBuilder()
-						.add("group-key", pubkey)
-						.add("signatures", Json.createArrayBuilder()
-								.add(sigshares[0])
-								.add(sigshares[1])
-								// missing sig share #2
-								.add(sigshares[3])
-								.add(sigshares[4])))
+				.add("group-key", pubkey)
+				.add("signatures", Json.createArrayBuilder()
+						.add(sigshares[0])
+						.add(sigshares[1])
+						// missing sig share #2
+						.add(sigshares[3])
+						.add(sigshares[4]))
 				.add("msg", "lorem ipsum dolor sit amet, " +
 						"consectetur adipiscing elit, " + 
 					 	"sed do eiusmod tempor incididunt " + 
@@ -446,14 +416,13 @@ public class XSPServer {
 
 		
 		conn.send(CallType.ThreshSigVerifyCall, Json.createObjectBuilder()
-				.add("crypto", Json.createObjectBuilder()
-						.add("group-key", pubkey)
-						.add("signatures", Json.createArrayBuilder()
-								.add(sigshares[0])
-								.add(sigshares[1])
-								.add(sigshares[2])
-								.add(sigshares[3])
-								.add(sigshares[4])))
+				.add("group-key", pubkey)
+				.add("signatures", Json.createArrayBuilder()
+						.add(sigshares[0])
+						.add(sigshares[1])
+						.add(sigshares[2])
+						.add(sigshares[3])
+						.add(sigshares[4]))
 				.add("msg", "lorem ipsum dolor sit amet, " +
 						"consectetur adipiscing elit, " + 
 					 	"sed do eiusmod tempor incididunt " + 

@@ -1,8 +1,10 @@
 package threshsig;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Random;
 
 /**
@@ -92,10 +94,10 @@ public class KeyShare {
     return signVal;
   }
 
-  @Override
-  public String toString() {
-    return "KeyShare[" + id + "]";
-  }
+//  @Override
+//  public String toString() {
+//    return "KeyShare[" + id + "]";
+//  }
 
   /**
    * Create a SigShare and a Verifier for byte[] b<BR>
@@ -176,4 +178,83 @@ public class KeyShare {
   public BigInteger getGroupVerifier() {
 	  return groupVerifier;
   }
+  
+  
+  @Override
+  public String toString() {
+
+	byte[] secretBytes = secret.toByteArray();
+	byte[] nBytes = n.toByteArray();
+	byte[] deltaBytes = delta.toByteArray();
+	byte[] verifierBytes = verifier.toByteArray();
+	byte[] gVerifierBytes = groupVerifier.toByteArray();
+  
+	byte[] keyShareBytes = ByteBuffer
+  		.allocate(4 + 4 + secretBytes.length + 4 + nBytes.length + 4 + deltaBytes.length
+  				+ 4 + verifierBytes.length + 4 + gVerifierBytes.length) 
+  		// 4 for id, 4 for l, 4 for size of exp, exp, 4 for size of mod, mod
+  		.putInt(id)
+  		.putInt(secretBytes.length)
+  		.put(secretBytes)
+  		.putInt(nBytes.length)
+  		.put(nBytes)
+  		.putInt(deltaBytes.length)
+  		.put(deltaBytes)
+  		.putInt(verifierBytes.length)
+  		.put(verifierBytes)
+  		.putInt(gVerifierBytes.length)
+  		.put(gVerifierBytes)
+  		.array();
+	
+	return Base64.getEncoder().encodeToString(keyShareBytes);
+  }
+  
+  public static KeyShare fromBytes(byte[] hexKey) {
+
+	  byte[] keyShareBytes = Base64.getDecoder().decode(hexKey);
+	  return parseKeyShare(keyShareBytes);
+  }
+  
+  public static KeyShare fromString(String hexKey) {
+	  
+	  byte[] keyShareBytes = Base64.getDecoder().decode(hexKey);
+	  return parseKeyShare(keyShareBytes);
+  }
+  
+  private static KeyShare parseKeyShare(byte[] keyShareBytes) {
+	  
+	  ByteBuffer bb = ByteBuffer.wrap(keyShareBytes);
+	 
+	  // get id
+	  final int id = bb.getInt();
+	  
+	  // get secret
+	  int secretBytesLen = bb.getInt();
+	  byte[] secretBytes = new byte[secretBytesLen];
+	  final BigInteger secret = new BigInteger(bb.get(secretBytes, 0, secretBytesLen).array());
+
+	  // get n
+	  int nBytesLen = bb.getInt();
+	  byte[] nBytes = new byte[nBytesLen];
+	  final BigInteger n = new BigInteger(bb.get(nBytes, 0, nBytesLen).array());
+	 
+	  // get delta
+	  int deltaBytesLen = bb.getInt();
+	  byte[] deltaBytes = new byte[deltaBytesLen];
+	  final BigInteger delta = new BigInteger(bb.get(deltaBytes, 0, deltaBytesLen).array());
+	  
+	  // get verifier
+	  int verifierBytesLen = bb.getInt();
+	  byte[] verifierBytes = new byte[verifierBytesLen];
+	  final BigInteger verifier = new BigInteger(bb.get(verifierBytes, 0, verifierBytesLen).array());
+	  
+	  // get n
+	  int gVerifierBytesLen = bb.getInt();
+	  byte[] gVerifierBytes = new byte[gVerifierBytesLen];
+	  final BigInteger gVerifier = new BigInteger(bb.get(gVerifierBytes, 0, gVerifierBytesLen).array());
+	  
+	  // return new key
+	  return new KeyShare(id, secret, n, delta, verifier, gVerifier);
+  }
+  
 }

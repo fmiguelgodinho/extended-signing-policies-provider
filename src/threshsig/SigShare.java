@@ -2,6 +2,7 @@ package threshsig;
 
 import java.math.BigInteger;
 import java.security.MessageDigest;
+import java.util.Base64;
 
 /**
  * Signature Shares Class<BR>
@@ -76,9 +77,16 @@ public class SigShare {
     return sig.toByteArray();
   }
 
+//  @Override
+//  public String toString() {
+//    return "Sig[" + id + "]: " + sig.toString();
+//  }
+  
+
+  
   @Override
   public String toString() {
-    return "Sig[" + id + "]: " + sig.toString();
+	  return Base64.getEncoder().encodeToString(sig.toByteArray());
   }
 
   // Static methods
