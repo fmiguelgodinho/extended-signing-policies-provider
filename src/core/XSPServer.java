@@ -23,6 +23,7 @@ import threshsig.Dealer;
 import threshsig.GroupKey;
 import threshsig.KeyShare;
 import threshsig.SigShare;
+import threshsig.ThresholdSigException;
 
 
 /* XSP Module
@@ -124,17 +125,9 @@ public class XSPServer {
 						
 						// deserialize sig shares
 						JsonArray arr = recvJson.getJsonArray("signatures");
-						SigShare[] sigs = new SigShare[arr.size()];
-						
+						byte[][] sigs = new byte[arr.size()][];
 						for (int i = 0; i < arr.size(); i++) {
-							
-							JsonObject sigObj = arr.getJsonObject(i);
-							int sigid = sigObj.getInt("id");
-							byte[] sig64Bytes = sigObj.getString("signature").getBytes("UTF-8");
-							byte[] sigBytes = Base64.getDecoder().decode(sig64Bytes);
-							
-							
-							sigs[i] = new SigShare(sigid, sigBytes);
+							sigs[i] = arr.getString(i).getBytes("UTF-8");
 						}
 						
 						// call verify fn and set return
@@ -179,17 +172,29 @@ public class XSPServer {
 	}
 	
 	
-	private JsonObject verify_ThreshSig(byte[] key, SigShare[] sigs, byte[] message) 
+	private JsonObject verify_ThreshSig(byte[] key, byte[][] sigs, byte[] message) 
 	throws IOException
 	{
 		boolean isValid = false;
 		
+		// parse group key
 		GroupKey gk = GroupKey.fromBytes(key);
+		
+		// convert the 64b strings to sig shares
+		SigShare[] ssh = new SigShare[sigs.length];
+		for (int i = 0; i < sigs.length; i++) {
+			ssh[i] = SigShare.fromBytes(sigs[i]);
+		}
 		
 		if (gk.getK() == sigs.length) {
 			// verify message sig
-			isValid = SigShare.verify(message, sigs, 
-					gk.getK(), gk.getL(), gk.getModulus(), gk.getExponent());
+			
+			try {
+				isValid = SigShare.verify(message, ssh, 
+						gk.getK(), gk.getL(), gk.getModulus(), gk.getExponent());
+			} catch (ThresholdSigException tse) {
+				// continue, isValid == false, signature was either null, duplicate or tampered
+			}
 		}
 		
 		return Json.createObjectBuilder()
@@ -283,7 +288,7 @@ public class XSPServer {
 //		Thread.sleep(2000);
 
 		int[] sharepos = {0, 1, 2, 3, 5};
-		JsonObject[] sigshares = new JsonObject[5];
+		String[] sigshares = new String[5];
 		for (int i = 0; i < 5; i++) {
 			
 			JsonObject shobj = recvJson.getJsonArray("shares").get(sharepos[i]).asJsonObject();
@@ -316,7 +321,7 @@ public class XSPServer {
 			JsonObject recvJson2 = jread.readObject();
 			jread.close();
 			
-			sigshares[i] = recvJson2;
+			sigshares[i] = recvJson2.getString("signature");
 //			Thread.sleep(1000);
 		}
 		
@@ -410,10 +415,7 @@ public class XSPServer {
 		
 		
 		// TODO CHANGE THIS TO BE OK
-		sigshares[3] = Json.createObjectBuilder()
-				.add("id", sigshares[3].getInt("id"))
-				.add("signature", "FTFbeDgNM5pIBljUzLilrNWYLr7JMtxhUTAWJWEdqpDrQlF4viFcpzaZlxC18bwUiQBYm4tLyY53NQi79afDSrdzYS4bGLU77HUWFXKM3VgXne0IKz9zFCluqGvPPrqZy+Ck09ZOZLKqSjg7QoIea8Z3tVSZIU8ofJfVSEGN8NQ=")
-				.build();
+		sigshares[3] = "FTFbeDgNM5pIBljUzLilrNWYLr7JMtxhUTAWJWEdqpDrQlF4viFcpzaZlxC18bwUiQBYm4tLyY53NQi79afDSrdzYS4bGLU77HUWFXKM3VgXne0IKz9zFCluqGvPPrqZy+Ck09ZOZLKqSjg7QoIea8Z3tVSZIU8ofJfVSEGN8NQ=";
 		
 
 		

@@ -1,6 +1,8 @@
 package threshsig;
 
 import java.math.BigInteger;
+import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Base64;
 
@@ -81,13 +83,6 @@ public class SigShare {
 //  public String toString() {
 //    return "Sig[" + id + "]: " + sig.toString();
 //  }
-  
-
-  
-  @Override
-  public String toString() {
-	  return Base64.getEncoder().encodeToString(sig.toByteArray());
-  }
 
   // Static methods
   //............................................................................
@@ -233,6 +228,58 @@ public class SigShare {
   //............................................................................
   private static void debug(final String s) {
     System.err.println("SigShare: " + s);
+  }
+
+  
+  // /FGODINHO
+  
+  @Override
+  public String toString() {
+
+	byte[] sigBytes = sig.toByteArray();
+	
+	byte[] sigShareBytes = ByteBuffer
+  		.allocate(4 + 4 + sigBytes.length) // 4 for id, 4 size of sig, sig
+  		.putInt(id)
+  		.putInt(sigBytes.length)
+  		.put(sigBytes)
+  		.array();
+	
+	return Base64.getEncoder().encodeToString(sigShareBytes);
+  }
+  
+  public static SigShare fromBytes(byte[] hexSig) {
+
+	  byte[] sigShareBytes = Base64.getDecoder().decode(hexSig);
+	  return parseSigShare(sigShareBytes);
+  }
+  
+  public static SigShare fromString(String hexSig) {
+	  
+	  byte[] sigShareBytes = Base64.getDecoder().decode(hexSig);
+	  return parseSigShare(sigShareBytes);
+  }
+  
+  private static SigShare parseSigShare(byte[] sigShareBytes) {
+	  
+	  ByteBuffer bb = ByteBuffer.wrap(sigShareBytes);
+	  
+	  try {
+	 
+		  // get id
+		  int id = bb.getInt();
+		  
+		  // get sig bytes
+		  int sigBytesLen = bb.getInt();
+		  byte[] sigBytes = new byte[sigBytesLen];
+		  bb.get(sigBytes, 0, sigBytesLen);
+		  
+		  // return sig share
+		  return new SigShare(id, sigBytes);
+		  
+	  } catch (BufferUnderflowException bue) {
+		  return null;
+	  }
   }
 
 }

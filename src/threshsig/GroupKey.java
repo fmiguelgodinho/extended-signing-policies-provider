@@ -2,6 +2,10 @@ package threshsig;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
+import java.security.spec.RSAPublicKeySpec;
 import java.util.Base64;
 
 /**
@@ -109,6 +113,17 @@ public class GroupKey {
 	  
 	  byte[] groupKeyBytes = Base64.getDecoder().decode(hexKey);
 	  return parseGroupKey(groupKeyBytes);
+  }
+  
+  private  GroupKey peGroupKey(byte[] groupKeyBytes) throws Exception {
+	  
+	  
+	  RSAPublicKeySpec spec = new RSAPublicKeySpec(n, e);
+	  KeyFactory factory = KeyFactory.getInstance("RSA");
+	  PublicKey pub = factory.generatePublic(spec);
+	  
+	return null;
+	  
   }
   
 
