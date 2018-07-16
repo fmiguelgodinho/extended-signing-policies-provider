@@ -281,5 +281,25 @@ public class SigShare {
 		  return null;
 	  }
   }
+  
+  public static boolean verifyCombinations(final byte[] data, final SigShare[] sigs, final GroupKey gk) {
+	  
+	  Combination<SigShare> c = new Combination<SigShare>(SigShare[].class, sigs, gk.getK());
+	  SigShare[] subsigs = null;
+	  
+	  // try out combinations of signature shares with arrays of size K
+		do {
+			subsigs = c.generateNext();
+			if (subsigs == null) // reached all possible combinations
+				break;
+			
+			if (verify(data, subsigs, gk.getK(), gk.getL(), gk.getModulus(), gk.getExponent()))			
+				return true;  // found a successful verification
+		} while (subsigs != null);
+	  
+		// at the worst case, no combination succeeds
+	  return false;
+  }
+  
 
 }

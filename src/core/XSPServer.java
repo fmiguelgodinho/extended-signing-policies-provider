@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
-import java.util.Base64;
 
 import javax.json.Json;
 import javax.json.JsonArray;
@@ -86,7 +85,7 @@ public class XSPServer {
 					continue;
 				}
 				
-	//			System.out.println("Received callName: " + recvCall + " payload: " + payload);
+				System.out.println("Received callName: " + recvCall + " payload: " + payload);
 				
 				JsonReader jread = Json.createReader(new StringReader(payload));
 				JsonObject recvJson = jread.readObject();
@@ -186,12 +185,13 @@ public class XSPServer {
 			ssh[i] = SigShare.fromBytes(sigs[i]);
 		}
 		
-		if (gk.getK() == sigs.length) {
+		if (gk.getK() <= sigs.length) {
 			// verify message sig
 			
 			try {
-				isValid = SigShare.verify(message, ssh, 
-						gk.getK(), gk.getL(), gk.getModulus(), gk.getExponent());
+				isValid = SigShare.verifyCombinations(message, ssh, gk);
+//				isValid = SigShare.verify(message, ssh, 
+//						gk.getK(), gk.getL(), gk.getModulus(), gk.getExponent());
 			} catch (ThresholdSigException tse) {
 				// continue, isValid == false, signature was either null, duplicate or tampered
 			}
@@ -287,16 +287,16 @@ public class XSPServer {
 		
 //		Thread.sleep(2000);
 
-		int[] sharepos = {0, 1, 2, 3, 5};
-		String[] sigshares = new String[5];
-		for (int i = 0; i < 5; i++) {
+		int[] sharepos = {0, 1, 2, 3, 4, 5};
+		String[] sigshares = new String[6];
+		for (int i = 0; i < 6; i++) {
 			
 			JsonObject shobj = recvJson.getJsonArray("shares").get(sharepos[i]).asJsonObject();
 			
 			int myid = shobj.getInt("id");
 			
 
-			System.out.println("3. (" + (i+1) + "/5) Requesting signing of message m with share id = " + myid);
+			System.out.println("3. (" + (i+1) + "/6) Requesting signing of message m with share id = " + myid);
 		
 			conn.send(CallType.ThreshSigSignCall, Json.createObjectBuilder()
 					.add("share", shobj.getString("share"))
@@ -326,7 +326,7 @@ public class XSPServer {
 		}
 		
 
-		System.out.println("4. Collected 5 signature shares.");
+		System.out.println("4. Collected 6 signature shares.");
 		System.out.println("5. Requesting verification of legitimate message m...");
 		
 		conn.send(CallType.ThreshSigVerifyCall, Json.createObjectBuilder()
@@ -336,7 +336,8 @@ public class XSPServer {
 							.add(sigshares[1])
 							.add(sigshares[2])
 							.add(sigshares[3])
-							.add(sigshares[4]))
+							.add(sigshares[4])
+							.add(sigshares[5]))
 				.add("msg", "lorem ipsum dolor sit amet, " +
 							"consectetur adipiscing elit, " + 
 						 	"sed do eiusmod tempor incididunt " + 
