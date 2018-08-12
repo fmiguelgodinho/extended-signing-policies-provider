@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
-import java.util.concurrent.Executors;
 
 import javax.json.Json;
 import javax.json.JsonArray;
@@ -36,7 +35,7 @@ import threshsig.ThresholdSigException;
 */
 public class XSPServer {
 	
-	public static final int THREAD_POOL_SIZE = 8;
+	public static int THREAD_POOL_SIZE = 8;
 
 	private String socketFileName;
 	private int socketType;
@@ -46,6 +45,10 @@ public class XSPServer {
 		socketFileName = pSocketFileName;
 		socketType = pSocketType;
 		errors = 0;
+		String threadszEnvVar = System.getenv("XSP_THREAD_POOL_SIZE");
+		if (threadszEnvVar != null && !threadszEnvVar.isEmpty())  {
+			THREAD_POOL_SIZE = Integer.parseInt(threadszEnvVar);
+		}
 	}
 
 	public UnixDomainSocketServer initServer() throws IOException {
@@ -66,6 +69,8 @@ public class XSPServer {
 
 		@Override
 		public void run() {
+			
+			int ncalls = 0;
 			while (true) {
 
 				try {
@@ -86,8 +91,9 @@ public class XSPServer {
 						logError(null, new Exception("Unexpected: Call was empty!"));
 						continue;
 					}
+					ncalls++;
 
-					System.out.println("Received callName: " + recvCall + " payload: " + payload);
+					System.out.println("Received call #" + ncalls + " callName: " + recvCall + " payload: " + payload);
 
 					JsonReader jread = Json.createReader(new StringReader(payload));
 					JsonObject recvJson = jread.readObject();
@@ -152,6 +158,8 @@ public class XSPServer {
 					} else {
 						conn.send(respCall, respJson.toString().getBytes("UTF-8"));
 					}
+					
+					System.out.println("Returned call #" + ncalls);
 
 				} catch (Exception e) {
 					logError(null, new Exception("Unexpected: Thread exploded during attend task!"));
