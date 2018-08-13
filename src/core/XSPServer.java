@@ -34,11 +34,11 @@ import threshsig.ThresholdSigException;
 * 
 */
 public class XSPServer {
-	
+
 	public static int THREAD_POOL_SIZE = 8;
 
-	private String socketFileName;
-	private int socketType;
+	private static String socketFileName;
+	private static int socketType;
 	private static int errors;
 
 	public XSPServer(String pSocketFileName, int pSocketType) throws IOException {
@@ -46,7 +46,7 @@ public class XSPServer {
 		socketType = pSocketType;
 		errors = 0;
 		String threadszEnvVar = System.getenv("XSP_THREAD_POOL_SIZE");
-		if (threadszEnvVar != null && !threadszEnvVar.isEmpty())  {
+		if (threadszEnvVar != null && !threadszEnvVar.isEmpty()) {
 			THREAD_POOL_SIZE = Integer.parseInt(threadszEnvVar);
 		}
 	}
@@ -61,19 +61,24 @@ public class XSPServer {
 
 	private static class XSPAttendTask implements Runnable {
 
-		XSPSocketConnection conn;
+		UnixDomainSocketServer serverSocket;
+		String threadName;
 
-		public XSPAttendTask(XSPSocketConnection conn) {
-			this.conn = conn;
+		public XSPAttendTask(UnixDomainSocketServer serverSocket, String threadName) {
+			this.serverSocket = serverSocket;
+			this.threadName = threadName;
 		}
 
 		@Override
 		public void run() {
-			
+
 			int ncalls = 0;
 			while (true) {
 
 				try {
+//					synchronized (this) {
+					UnixDomainSocket socket = serverSocket.accept(); // we only need to accept once
+					XSPSocketConnection conn = new XSPSocketConnection("Server -> Client:" + socketFileName, socket);
 
 					byte[] recv = new byte[4096];
 					int recvNr = conn.receive(recv);
@@ -91,9 +96,10 @@ public class XSPServer {
 						logError(null, new Exception("Unexpected: Call was empty!"));
 						continue;
 					}
-					ncalls++;
 
-					System.out.println("Received call #" + ncalls + " callName: " + recvCall + " payload: " + payload);
+					ncalls++;
+					System.out.println(this.threadName + ": Received call #" + ncalls + " callName: " + recvCall
+							+ " payload: " + payload);
 
 					JsonReader jread = Json.createReader(new StringReader(payload));
 					JsonObject recvJson = jread.readObject();
@@ -158,8 +164,10 @@ public class XSPServer {
 					} else {
 						conn.send(respCall, respJson.toString().getBytes("UTF-8"));
 					}
-					
+
 					System.out.println("Returned call #" + ncalls);
+					br.close();
+					socket.close();
 
 				} catch (Exception e) {
 					logError(null, new Exception("Unexpected: Thread exploded during attend task!"));
@@ -169,13 +177,9 @@ public class XSPServer {
 	}
 
 	public void runServer(UnixDomainSocketServer serverSocket) throws IOException, ClassNotFoundException {
-		while (true) {
-			UnixDomainSocket socket = serverSocket.accept(); // we only need to accept once
-			XSPSocketConnection conn = new XSPSocketConnection("Server -> Client:" + socketFileName, socket);
 
-			for (int i = 0; i < THREAD_POOL_SIZE; i++) {
-				new Thread(new XSPAttendTask(conn)).start();
-			}
+		for (int i = 0; i < THREAD_POOL_SIZE; i++) {
+			new Thread(new XSPAttendTask(serverSocket, "thread-xspp-" + i)).start();
 		}
 	}
 
@@ -451,20 +455,23 @@ public class XSPServer {
 			};
 
 			serverThread.start();
-			Thread clientThread = new Thread() {
-				public void run() {
-					try {
-						runClient();
-					} catch (IOException ioException) {
-						logError(new Object[] { "Client socket failure" }, ioException);
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
-				}
-			};
 
-			clientThread.start();
-			clientThread.join();
+			for (int i = 0; i < 100; i++) {
+				Thread clientThread = new Thread() {
+					public void run() {
+						try {
+							runClient();
+						} catch (IOException ioException) {
+							logError(new Object[] { "Client socket failure" }, ioException);
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+					}
+				};
+
+				clientThread.start();
+			}
+			// clientThread.join();
 
 			// serverThread.join();
 		} finally {
