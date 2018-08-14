@@ -76,8 +76,10 @@ public class XSPServer {
 			while (true) {
 
 				try {
-//					synchronized (this) {
-					UnixDomainSocket socket = serverSocket.accept(); // we only need to accept once
+					UnixDomainSocket socket = null;
+					synchronized (this) {
+						socket = serverSocket.accept(); // we only need to accept once
+					}
 					XSPSocketConnection conn = new XSPSocketConnection("Server -> Client:" + socketFileName, socket);
 
 					byte[] recv = new byte[4096];
@@ -272,6 +274,8 @@ public class XSPServer {
 				+ 512 + ")");
 
 		conn.receive(recv);
+		
+		
 		@SuppressWarnings("unused")
 		String recvCall = br.readLine(); // get the call name
 		String payload = br.readLine(); // get the payload
@@ -283,6 +287,10 @@ public class XSPServer {
 		String pubkey = recvJson.getString("group-key");
 
 		System.out.println("2. Successfully got group key and shares:" + recvJson);
+
+		clientSocket.close();
+		clientSocket = new UnixDomainSocketClient("/tmp/hlf-xsp.sock", JUDS.SOCK_STREAM);
+		conn = new XSPSocketConnection("Client -> Server:" + socketFileName, clientSocket);
 
 		// Thread.sleep(2000);
 
@@ -316,6 +324,10 @@ public class XSPServer {
 
 			sigshares[i] = recvJson2.getString("signature");
 			// Thread.sleep(1000);
+
+			clientSocket.close();
+			clientSocket = new UnixDomainSocketClient("/tmp/hlf-xsp.sock", JUDS.SOCK_STREAM);
+			conn = new XSPSocketConnection("Client -> Server:" + socketFileName, clientSocket);
 		}
 
 		System.out.println("4. Collected 6 signature shares.");
@@ -340,6 +352,10 @@ public class XSPServer {
 
 		System.out.println("6. Result of verification = " + payload);
 
+		clientSocket.close();
+		clientSocket = new UnixDomainSocketClient("/tmp/hlf-xsp.sock", JUDS.SOCK_STREAM);
+		conn = new XSPSocketConnection("Client -> Server:" + socketFileName, clientSocket);
+
 		System.out.println("7. Requesting verification of tampered message m...");
 
 		conn.send(CallType.ThreshSigVerifyCall,
@@ -362,6 +378,11 @@ public class XSPServer {
 		System.out.println("8. Result of verification = " + payload);
 
 		System.out.println("9. Requesting verification of legitimate message m with a missing signature share...");
+		
+
+		clientSocket.close();
+		clientSocket = new UnixDomainSocketClient("/tmp/hlf-xsp.sock", JUDS.SOCK_STREAM);
+		conn = new XSPSocketConnection("Client -> Server:" + socketFileName, clientSocket);
 
 		conn.send(CallType.ThreshSigVerifyCall,
 				Json.createObjectBuilder().add("group-key", pubkey)
@@ -383,6 +404,10 @@ public class XSPServer {
 		System.out.println("10. Result of verification = " + payload);
 
 		System.out.println("11. Requesting verification of legitimate message m with forged signature share...");
+
+		clientSocket.close();
+		clientSocket = new UnixDomainSocketClient("/tmp/hlf-xsp.sock", JUDS.SOCK_STREAM);
+		conn = new XSPSocketConnection("Client -> Server:" + socketFileName, clientSocket);
 
 		// TODO CHANGE THIS TO BE OK
 		sigshares[3] = "FTFbeDgNM5pIBljUzLilrNWYLr7JMtxhUTAWJWEdqpDrQlF4viFcpzaZlxC18bwUiQBYm4tLyY53NQi79afDSrdzYS4bGLU77HUWFXKM3VgXne0IKz9zFCluqGvPPrqZy+Ck09ZOZLKqSjg7QoIea8Z3tVSZIU8ofJfVSEGN8NQ=";
@@ -406,6 +431,8 @@ public class XSPServer {
 
 		System.out.println("12. Result of verification = " + payload);
 		System.out.println("E2E test done.");
+
+		clientSocket.close();
 	}
 
 	public void start() throws IOException, InterruptedException {
