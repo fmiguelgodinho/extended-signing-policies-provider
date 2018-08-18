@@ -36,6 +36,7 @@ import threshsig.ThresholdSigException;
 public class XSPServer {
 
 	public static int THREAD_POOL_SIZE = 8;
+	public static int MTU = 4096;
 
 	private static String socketFileName;
 	private static int socketType;
@@ -48,6 +49,11 @@ public class XSPServer {
 		String threadszEnvVar = System.getenv("XSP_THREAD_POOL_SIZE");
 		if (threadszEnvVar != null && !threadszEnvVar.isEmpty()) {
 			THREAD_POOL_SIZE = Integer.parseInt(threadszEnvVar);
+		}
+		
+		String mtuEnvVar = System.getenv("XSP_MTU");
+		if (mtuEnvVar != null && !mtuEnvVar.isEmpty()) {
+			MTU = Integer.parseInt(mtuEnvVar);
 		}
 	}
 
@@ -82,7 +88,7 @@ public class XSPServer {
 					}
 					XSPSocketConnection conn = new XSPSocketConnection("Server -> Client:" + socketFileName, socket);
 
-					byte[] recv = new byte[4096];
+					byte[] recv = new byte[MTU];
 					int recvNr = conn.receive(recv);
 
 					if (recvNr < 0)
