@@ -210,7 +210,11 @@ public class XSPServer {
 		// convert the 64b strings to sig shares
 		SigShare[] ssh = new SigShare[sigs.length];
 		for (int i = 0; i < sigs.length; i++) {
-			ssh[i] = SigShare.fromBytes(sigs[i]);
+			try {
+				ssh[i] = SigShare.fromBytes(sigs[i]);
+			} catch (Exception ex) {
+				System.out.println("Detected malformed sig");
+			}
 		}
 
 		if (gk.getK() <= sigs.length) {
@@ -416,7 +420,7 @@ public class XSPServer {
 		conn = new XSPSocketConnection("Client -> Server:" + socketFileName, clientSocket);
 
 		// TODO CHANGE THIS TO BE OK
-		sigshares[3] = "FTFbeDgNM5pIBljUzLilrNWYLr7JMtxhUTAWJWEdqpDrQlF4viFcpzaZlxC18bwUiQBYm4tLyY53NQi79afDSrdzYS4bGLU77HUWFXKM3VgXne0IKz9zFCluqGvPPrqZy+Ck09ZOZLKqSjg7QoIea8Z3tVSZIU8ofJfVSEGN8NQ=";
+		sigshares[3] = "TRUDY";
 
 		conn.send(CallType.ThreshSigVerifyCall,
 				Json.createObjectBuilder().add("group-key", pubkey)
@@ -489,7 +493,7 @@ public class XSPServer {
 
 			serverThread.start();
 
-			for (int i = 0; i < 100; i++) {
+			for (int i = 0; i < 1; i++) {
 				Thread clientThread = new Thread() {
 					public void run() {
 						try {
